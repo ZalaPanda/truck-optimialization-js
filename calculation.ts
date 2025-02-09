@@ -163,8 +163,8 @@ const output = async (truck: Segment, pallets: Pallet[]) => {
     section.x += 25;
     stacks.map(stack => {
       stack.map(pallet => {
-        const name = pallet.partFamily;
-        const color = colors.at(Object.keys(mappings).indexOf(name));
+        const name = `${pallet.partFamily} ${pallet.width / 1000}x${pallet.height / 1000}x${pallet.length / 1000}M ${pallet.weight}KG`;
+        const color = colors.at(Object.keys(mappings).indexOf(pallet.partFamily));
         boxes.push({ w: pallet.width, h: pallet.height, l: pallet.length, x: section.x, y: section.y, z: section.z, name, color });
         section.y += pallet.height;
       })
@@ -174,8 +174,8 @@ const output = async (truck: Segment, pallets: Pallet[]) => {
   });
   const temp = { x: -1500, y: 0, z: 0 }; // NOTE: pallets that couldn't be loaded
   pallets.map(pallet => {
-    const name = pallet.partFamily;
-    const color = colors.at(Object.keys(mappings).indexOf(name));
+    const name = `${pallet.partFamily} ${pallet.width / 1000}x${pallet.height / 1000}x${pallet.length / 1000}M ${pallet.weight}KG`;
+    const color = colors.at(Object.keys(mappings).indexOf(pallet.partFamily));
     boxes.push({ w: pallet.width, h: pallet.height, l: pallet.length, x: temp.x, y: temp.y, z: temp.z, name, color });
     temp.z += pallet.length + 100;
   });
@@ -197,14 +197,15 @@ const packPallets = (truck: Segment, pallets: Pallet[]) => {
       }
     }
     if (segment.stacks) {
-      for (const pallets of segment.stacks) {
-        if ((pallets.at(-1)?.length || 0) < pallet.length) continue;
-        if ((pallets.at(0)?.stackLimit || 0) <= pallets.length) continue;
-        if (!(mappings[String(pallets.at(-1)?.partFamily)] || []).includes(pallet.partFamily)) continue;
+      for (const stacks of segment.stacks) {
+        if ((stacks.at(-1)?.length || 0) < pallet.length) continue;
+        if ((stacks.at(0)?.stackLimit || 0) <= stacks.length) continue;
+        if (!(mappings[String(stacks.at(-1)?.partFamily)] || []).includes(pallet.partFamily)) continue;
+
         return {
           ...segment,
-          stacks: segment.stacks.map(item => item === pallets ? pallets.concat(pallet) : item)
-        }
+          stacks: segment.stacks.map(item => item === stacks ? stacks.concat(pallet) : item)
+        };
       }
     }
     if (!segment.lengthLimit) return;
