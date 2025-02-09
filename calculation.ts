@@ -1,4 +1,5 @@
-import { write } from 'bun';
+// import { write } from 'bun';
+import { writeFileSync } from 'fs';
 
 interface Segment { name: string, weightUsed?: number, weightLimit?: number, lengthUsed?: number, lengthLimit?: number, segments?: Segment[], stacks?: Pallet[][] }
 interface Pallet { itemMasterId: number, width: number, height: number, length: number, weight: number, stackLimit: number, partFamily: string };
@@ -153,7 +154,7 @@ const extact = (segment: Segment, sections: Pallet[][][] = []) => {
   if (segment.stacks) sections.push(segment.stacks);
   return sections;
 };
-const output = async (truck: Segment, pallets: Pallet[]) => {
+const output = (truck: Segment, pallets: Pallet[]) => {
   const colors = [0x005f73, 0x0a9396, 0x94d2bd, 0xe9d8a6, 0xee9b00, 0xca6702, 0xca6702, 0xbb3e03, 0xae2012];
   const sections: Pallet[][][] = extact(truck);
   const boxes: Box[] = [{ w: 2300, h: 2300, l: 1100, x: 100, y: 100, z: -1200 }]; // NOTE: truck cabin
@@ -179,16 +180,18 @@ const output = async (truck: Segment, pallets: Pallet[]) => {
     boxes.push({ w: pallet.width, h: pallet.height, l: pallet.length, x: temp.x, y: temp.y, z: temp.z, name, color });
     temp.z += pallet.length + 100;
   });
-  await write('output.json', JSON.stringify(boxes));
+  // await write('output.json', JSON.stringify(boxes));
+  writeFileSync('output.json', JSON.stringify(boxes));
 };
 
-const packPallets = (truck: Segment, pallets: Pallet[]) => {
-  const pack = (segment: Segment, pallet: Pallet): Segment | undefined => {
-    if (segment.weightLimit && segment.weightLimit - (segment.weightUsed || 0) < pallet.weight) return;
+const best: { truck?: Segment, pallets?: Pallet[] } = {};
+const packPallets = (truck: Segment, pallets: Pallet[], seq: number[] = []): Segment => {
+  const packOnePallet = (segment: Segment, pallet: Pallet): Segment => {
+    if (segment.weightLimit && segment.weightLimit - (segment.weightUsed || 0) < pallet.weight) return segment;
     if (segment.segments) {
       for (const innerSegment of segment.segments) {
-        const changedSegment = pack(innerSegment, pallet);
-        if (!changedSegment) continue;
+        const changedSegment = packOnePallet(innerSegment, pallet);
+        if (changedSegment === innerSegment) continue; // NOTE: failed to pack into inner segment
         return {
           ...segment,
           weightUsed: (segment.weightUsed || 0) + pallet.weight,
@@ -201,33 +204,48 @@ const packPallets = (truck: Segment, pallets: Pallet[]) => {
         if ((stacks.at(-1)?.length || 0) < pallet.length) continue;
         if ((stacks.at(0)?.stackLimit || 0) <= stacks.length) continue;
         if (!(mappings[String(stacks.at(-1)?.partFamily)] || []).includes(pallet.partFamily)) continue;
-
         return {
           ...segment,
           stacks: segment.stacks.map(item => item === stacks ? stacks.concat(pallet) : item)
         };
       }
     }
-    if (!segment.lengthLimit) return;
-    if (segment.lengthLimit && segment.lengthLimit - (segment.lengthUsed || 0) < pallet.length) return;
+    if (!segment.lengthLimit) return segment;
+    if (segment.lengthLimit && segment.lengthLimit - (segment.lengthUsed || 0) < pallet.length) return segment;
     return {
       ...segment,
       lengthUsed: (segment.lengthUsed || 0) + pallet.length,
-      stacks: (segment.stacks || []).concat([[pallet]]) // NOTE: this makes no sense...
+      stacks: (segment.stacks || []).concat([[pallet]]) // NOTE: this array-within-an-array syntax makes no sense...
     };
   };
-  const pallet = pallets.at(0);
-  if (!pallet) {
-    console.log("DONE", truck, pallets);
-    return truck;
-  }
-  const packed = pack(truck, pallet);
-  if (packed) packPallets(packed, pallets.slice(1));
-  else {
+
+  if (!pallets.length) {
+    console.log("HUGE-SUCCESS", truck, pallets);
     output(truck, pallets);
-    console.log("ALMOST", truck, pallets);
-    return truck;
+    return { ...truck };
   }
+
+  for (const pallet of pallets) {
+    const palletIndex = pallets.indexOf(pallet);
+    const changedTruck = packOnePallet(truck, pallet);
+    if (changedTruck === truck) {
+      continue; // FAILED to pack that pallet
+    }
+    const finishedTruck = packPallets(changedTruck, pallets.filter(item => item !== pallet), [...seq, palletIndex]);
+    if (finishedTruck === changedTruck) {
+      if ((best.truck?.weightUsed || 0) < (truck.weightUsed || 0)) {
+        best.truck = truck;
+        best.pallets = pallets;
+        console.log("DEAD-END", truck.weightUsed, truck.weightLimit, seq);
+        output(truck, pallets);
+        break;
+      }
+      continue; // FAILED to pack the rest
+    }
+    return finishedTruck;
+  }
+  return truck;
 };
 
-packPallets(truck, pallets.sort((a, b) => b.weight - a.weight));
+// [Workers](https://bun.sh/docs/api/workers) needed! 😱
+packPallets(truck, pallets.sort((a, b) => b.stackLimit - a.stackLimit).sort((a, b) => b.weight - a.weight));
