@@ -1,0 +1,16 @@
+{
+  "name": "truck-optimialization-js",
+  "module": "index.js",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/three": "^0.173.0",
+    "vite": "^6.1.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "three": "^0.173.0"
+  }
+}
