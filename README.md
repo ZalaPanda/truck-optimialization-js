@@ -12,3 +12,6 @@ I’ve actually never had the chance to play with [three.js](https://threejs.org
 
 Reading materials:
 [The Art of Stacking: Challenges Faced While Developing a Packing Algorithm | by Sawa_i](https://medium.com/@fayyazawais1412/the-art-of-stacking-challenges-faced-while-developing-a-packing-algorithm-64d869b924ab)
+
+Tuesday packing plan:
+![examplePacking.png](examplePacking.png)
